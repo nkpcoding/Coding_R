@@ -1,77 +1,98 @@
-#### Assignment 10 ####
+#### Assignment 11 ####
 # Nava Peter (211311147)
 # Introduction to R
 
-# Reads the CSV
+# Creating fake information
 
-exam_anxiety= read.csv("C:\\Users\\USER\\OneDrive - mail.tau.ac.il\\University\\coding\\r\\Exam_Anxiety.csv")
+library(dplyr)
 
-# General CSV Overview
+df_exam_grade= data.frame()
+df_exam_grade <- df_exam_grade |>
+  # creating the variables with a slope
+  mutate(study_time = rnorm(200, mean= 4, sd= 2)) |>
+  mutate(test_anxiety = rnorm(200, mean= 100, sd= 50)) |>
+  mutate(sleep_quality= rnorm(200, mean = 50, sd= 50)) |>
+  # Creating variables without a slope
+  mutate(dominant_hand= rbinom(200,size = 1, prob = 0.5)) |>
+  mutate(factor(music_preference= sample(c("rock", "pop", "country"), size = 200, replace = T), levels = c("rock", "pop", "country"))) |>
+  mutate(screen_time_weekend= pmax(0, rnorm(200, mean = 4, sd= 2)))
 
-print(head(exam_anxiety)) # Prints the head of the CSV
-summary(exam_anxiety) # Prints a general summary of the CSV
+# Adding noise for every grade
+noise = rnorm(200, mean = 10, sd= 5)
 
-# Checks NaN
-ifelse (sum(is.na(exam_anxiety))!=0,
-        (
-          print("There is NaN") &
-            exam_anxiety= drop_na(exam_anxiety)),
-        print("There is no NaN"))
+# Creating Coefficients and Exam Score
+b1= lm(exam_grade~ study_time, data= df_exam_grade)
+b2= lm(exam_grade~test_anxiety, data = df_exam_grade)
+b3= lm(exam_grade~sleep quality, data= df_exam_grade)
+exam_score = [b1!=0 & b2!=0 & b3!= 0]b0+b1*study_time+b2*test_anxiety+b3*sleep_quality+noise
+df_exam_grade= df_exam_grade |>
+  mutate("exam score"= exam_score)
 
-# Part 1: Graphic Presentation of the CSV
+# Creating models
+model_1= lm(exam_score~study_time, data= df_exam_grade)
+model_2= lm(exam_score~ study_time + test_anxiety + sleep_quality, data = df_exam_grade)
+model_3= lm(exam_score~ study_time + test_anxiety + sleep_quality + dominant_hand + music_preference + screen_time_weekend, data = df_exam_grade)
+models= data.frame(model_1, model_2, model_3)
 
+# Calculating model information
+r_squared= c(summary(model_1)$r.squared, summary(model_2)$r.squared, summary(model_3)$r.squared)
+r_adjusted= c(summary(model_1)$adj.r.squared, summary(model_2)$adj.r.squared, summary(model_3)$adj.r.squared)
+AIC_all= c(AIC(model_1), AIC(model_2), AIC(model_3))
+statistics= data.frame(r_squared, r_adjusted, AIC_all)
+
+# Creating the graphic presentation
 library(ggplot2)
-library(ggdist)
+ggplot(data = statistics, aes(x= models, y= statistics))+
+  geom_bar(aes(x= models, y= r_squared),
+           labs("R Squared Estimations"),
+           xlab("Models"),
+           ylab("R Squared")) +
+  geom_bar(aes(x= models, y= r_adjusted),
+           labs("Adjusted R Calculations"),
+           xlab("Models"),
+           ylab("R Squared"))+
+  geom_bar(aes(x= models, y= AIC_all),
+           labs("AIC Calculations"),
+           xlab("Models"),
+           ylab("AIC"))
 
-ggplot(
-  data = exam_anxiety,
-  aes(x= anxiety_rating, y= exam_score) +
-    geom_point(
-      aes(x= anxiety_rating),
-      xlim(min(exam_anxiety$anxiety_rating), max(exam_anxiety$anxiety_rating)),
-      xlab("Anxiety Rating"))+
-    geom_point(aes(x= exam_score), xlab("Exam Scores"), xlim(min(exam_anxiety$anxiety_rating), max(exam_anxiety$anxiety_rating))+
-                 facet_grid(~variable.names())
-               +
-                 title("Anxiety Levels") +
-                 theme_minimal()
-    )
-)
+# Train/Test and Prediction
+idx_train <- sample(seq_len(nrow(df_exam_grade), size= floor(0.8 * nrow(df_exam_grade))))
+df_train <- df[idx_train]
+df_test <- df[-idx_train]
 
-# Part 2: Gender Effect
+# Adjusts the models to the training data
+models = models |>
+  model_1= model_1= lm(exam_score~study_time, data= df_train) |>
+  model_2= lm(exam_score~ study_time + test_anxiety + sleep_quality, data = df_train) |>
+  model_3= lm(exam_score~ study_time + test_anxiety + sleep_quality + dominant_hand + music_preference + screen_time_weekend, data = df_train)
+summary(models)
 
-# Graph 1: Gender on Anxiety Levels
-y= exam_anxiety$anxiety_rating
-x1= exam_anxiety$gender
+# Predicts the Test data
 
-gender_effect= lm(y ~ x1) # Regression between gender levels and anxiety ratings
-summary(gender_effect) # summarizes the effect of gender on anxiety
+pred_train = predict(models, new_data= df_train)
+pred_test= predict(models, new_data= df_test)
 
-# Graph 2: Gender and Treatment on Anxiety Levels
-x2= exam_anxiety$treatment
-gender_treatment_effect= lm(y ~ x1 + x2 + x1*x2)
-summary(gender_treatment_effect)
+# Calculates SSE and MSE
+sse_train = sum((df_train$y- pred_train)^ 2)
+mse_train = mean((df_train$y - pred_train)^2)
 
-# Graph 3: Gender and Treatment with No Interaction
+sse_test= sum((df_test$y - pred_test)^2)
+mse_test= mean((df_test$y-pred_test)^2)
 
-x1_graph_3 = exam_anxiety$time_studying
-treatment_prep_effect= lm(y~ x1_graph_3 + x2)
-summary(treatment_prep_effect)
+mse_train
+mse_test
 
-# Part 3: Prediction
+pred_quality= data.frame(mse_train, mse_test)
 
-# Creating Train and Test Models
-idx_train <- seq(1, 90, 1)
-df_train <- df[idx_train, ]
-df_test  <- df[-idx_train, ]
+# Creates a bar graph of the prediction quality
+ggplot(data = pred_quality, aes(x= models, y= pred_quality)) +
+  geom_bar(aes(x= models, y= pred_quality),
+           labs("Prediction Quality on Models"),
+           xlab("Models"),
+           ylab("Prediction Quality"))
 
-# Creating the df_train model
-grade_model <- lm(exam_anxiety$exam_score ~ exam_anxiety$time_studying, data = df_train)
-summary(grade_model)
 
-# Predicting with the df_train model
-exam_anxiety$predict_grade_from_91= predict(grade_model, newdata= df_test)
 
-# Graphic Presentation
-ggplot(exam_anxiety, aes(x= predict_grade_from_91, y= exam_score)) +
-  geom_errorbar()
+
+  
